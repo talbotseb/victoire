@@ -13,11 +13,11 @@ default:
                  - Tests/Features/Widget
                  - Tests/Features/WidgetMap
              contexts:
+                 - Victoire\Tests\Features\Context\CoverageContext
                  - Victoire\Tests\Features\Context\FeatureContext
                  - Victoire\Tests\Features\Context\JavascriptContext
+                 - Victoire\Tests\Features\Context\MinkContext
                  - Victoire\Tests\Features\Context\VictoireContext
-                 - Victoire\Tests\Features\Context\CoverageContext
-                 - Knp\FriendlyContexts\Context\MinkContext
                  - Knp\FriendlyContexts\Context\AliceContext
                  - Knp\FriendlyContexts\Context\EntityContext
                  - Knp\FriendlyContexts\Context\TableContext
@@ -25,22 +25,23 @@ default:
     extensions:
          Behat\Symfony2Extension:
             kernel:
-                bootstrap: Tests/Functionnal/app/autoload.php
-                path: Tests/Functionnal/app/AppKernel.php
+                bootstrap: Tests/App/app/autoload.php
+                path: Tests/App/app/AppKernel.php
                 class: AppKernel
                 env: ci
          Lakion\Behat\MinkDebugExtension:
              directory: fails
              screenshot: true
+             clean_start: false
          Behat\MinkExtension\ServiceContainer\MinkExtension:
              base_url:           'http://anakin@victoire.io:test@fr.victoire.io:8000/app_ci.php'
-             selenium2:          ~
-             goutte:             ~
+             selenium2: ~
+             goutte: ~
              symfony2: ~
              default_session:    symfony2
              javascript_session: selenium2
              browser_name: firefox
-             files_path:         Tests/Features/
+             files_path: Tests/Features/
          Knp\FriendlyContexts\Extension:
              entities:
                  namespaces:
@@ -49,29 +50,33 @@ default:
              smartTag: smartStep
              alice:
                  fixtures:
-                     Media:             Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Seeds/ORM/Media/folder.yml
-                     MediaFile:         Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Seeds/ORM/Media/media.yml
-                     User:              Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Seeds/ORM/User/user.yml
-                     Template:          Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Seeds/ORM/View/template.yml
-                     Page:              Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Seeds/ORM/View/page.yml
-                     ErrorPage:         Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Seeds/ORM/View/errorPage.yml
-                     Blog:              Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/blog.yml
-                     BlogTemplate:      Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/template.yml
-                     ArticleI18n:       Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/article_i18n.yml
-                     Article:           Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/article.yml
-                     BlogBP:            Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/businessPage.yml
-                     Character:         Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/character.yml
-                     Mercenary:         Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/mercenary.yml
-                     Jedi:              Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/jedi.yml
-                     CharacterTemplates: Tests/Functionnal/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/template.yml
+                     Media:              Tests/App/src/Acme/AppBundle/DataFixtures/Seeds/ORM/Media/folder.yml
+                     MediaFile:          Tests/App/src/Acme/AppBundle/DataFixtures/Seeds/ORM/Media/media.yml
+                     User:               Tests/App/src/Acme/AppBundle/DataFixtures/Seeds/ORM/User/user.yml
+                     Template:           Tests/App/src/Acme/AppBundle/DataFixtures/Seeds/ORM/View/template.yml
+                     Page:               Tests/App/src/Acme/AppBundle/DataFixtures/Seeds/ORM/View/page.yml
+                     ErrorPage:          Tests/App/src/Acme/AppBundle/DataFixtures/Seeds/ORM/View/errorPage.yml
+                     BusinessEntity:     Tests/App/src/Acme/AppBundle/DataFixtures/Seeds/ORM/BusinessEntity/businessEntity.yml
+                     Blog:               Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/blog.yml
+                     BlogTemplate:       Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/template.yml
+                     ArticleI18n:        Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/article_i18n.yml
+                     Article:            Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/article.yml
+                     BlogBP:             Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Blog/businessPage.yml
+                     Character:          Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/character.yml
+                     Mercenary:          Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/mercenary.yml
+                     Jedi:               Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/jedi.yml
+                     CharacterTemplates: Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Character/template.yml
+                     SpaceshipTemplates: Tests/App/src/Acme/AppBundle/DataFixtures/Fixtures/ORM/Spaceship/template.yml
                  dependencies:
-                     Template:           [User]
-                     ErrorPage:          [Template, User]
-                     Page:               [Template, User]
-                     Blog:               [Template, BlogTemplate, User]
-                     Article:            [ArticleI18n, Template, Blog, BlogTemplate, BlogBP, User]
-                     CharacterTemplates: [Template, User]
+                     Template:           [User, BusinessEntity]
+                     ErrorPage:          [Template, User, BusinessEntity]
+                     Page:               [Template, User, BusinessEntity]
+                     Blog:               [Template, BlogTemplate, User, BusinessEntity]
+                     Article:            [ArticleI18n, Template, Blog, BlogTemplate, BlogBP, User, BusinessEntity]
+                     CharacterTemplates: [Template, User, BusinessEntity]
+                     Jedi:               [BusinessEntity]
+                     SpaceshipTemplates: [BusinessEntity]
                      MediaFile:          [Media]
              symfony_kernel:
-                 bootstrap: Tests/Functionnal/app/autoload.php
-                 path: Tests/Functionnal/app/AppKernel.php
+                 bootstrap: Tests/App/app/autoload.php
+                 path: Tests/App/app/AppKernel.php

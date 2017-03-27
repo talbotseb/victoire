@@ -4,16 +4,18 @@ namespace Victoire\Bundle\PageBundle\Helper;
 
 use Doctrine\Common\Util\ClassUtils;
 use Doctrine\Orm\EntityManager;
-use Doctrine\ORM\ORMInvalidArgumentException;
 use Symfony\Component\DependencyInjection\Container;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 use Symfony\Component\Security\Core\Authorization\AuthorizationChecker;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+use Victoire\Bundle\APIBusinessEntityBundle\Resolver\APIBusinessEntityResolver;
+use Victoire\Bundle\BusinessEntityBundle\Entity\BusinessEntityInterface;
 use Victoire\Bundle\BusinessEntityBundle\Helper\BusinessEntityHelper;
 use Victoire\Bundle\BusinessPageBundle\Builder\BusinessPageBuilder;
 use Victoire\Bundle\BusinessPageBundle\Entity\BusinessPage;
@@ -24,6 +26,7 @@ use Victoire\Bundle\CoreBundle\Entity\Link;
 use Victoire\Bundle\CoreBundle\Entity\View;
 use Victoire\Bundle\CoreBundle\Event\PageRenderEvent;
 use Victoire\Bundle\CoreBundle\Helper\CurrentViewHelper;
+use Victoire\Bundle\ORMBusinessEntityBundle\Entity\ORMBusinessEntity;
 use Victoire\Bundle\PageBundle\Entity\BasePage;
 use Victoire\Bundle\PageBundle\Entity\Page;
 use Victoire\Bundle\SeoBundle\Helper\PageSeoHelper;
@@ -55,6 +58,7 @@ class PageHelper
     protected $businessPageHelper;
     protected $viewReferenceRepository;
     protected $widgetDataWarmer;
+    protected $apiBusinessEntityResolver;
 
     /**
      * @param BusinessEntityHelper     $businessEntityHelper
@@ -88,7 +92,8 @@ class PageHelper
         BusinessPageBuilder $businessPageBuilder,
         BusinessPageHelper $businessPageHelper,
         WidgetDataWarmer $widgetDataWarmer,
-        ViewReferenceRepository $viewReferenceRepository
+        ViewReferenceRepository $viewReferenceRepository,
+        APIBusinessEntityResolver $apiBusinessEntityResolver
     ) {
         $this->businessEntityHelper = $businessEntityHelper;
         $this->entityManager = $entityManager;
@@ -105,6 +110,7 @@ class PageHelper
         $this->businessPageHelper = $businessPageHelper;
         $this->widgetDataWarmer = $widgetDataWarmer;
         $this->viewReferenceRepository = $viewReferenceRepository;
+        $this->apiBusinessEntityResolver = $apiBusinessEntityResolver;
     }
 
     /**
@@ -150,10 +156,12 @@ class PageHelper
      * if seo redirect, return target.
      *
      * @param string $url
+     * @param        $locale
+     * @param null   $layout
      *
      * @return Response
      */
-    public function renderPageByUrl($url, $locale, $isAjax = false)
+    public function renderPageByUrl($url, $locale, $layout = null)
     {
         $page = null;
         if ($viewReference = $this->viewReferenceRepository->getReferenceByUrl($url, $locale)) {
@@ -171,8 +179,7 @@ class PageHelper
                 return new RedirectResponse($this->container->get('victoire_widget.twig.link_extension')->victoireLinkUrl($link->getParameters()));
             }
 
-
-            return $this->renderPage($page, $isAjax);
+            return $this->renderPage($page, $layout);
         } else {
             throw new NotFoundHttpException(sprintf('Page not found (url: "%s", locale: "%s")', $url, $locale));
         }
@@ -182,20 +189,21 @@ class PageHelper
      * generates a response from a page.
      *
      * @param View $view
+     * @param null $layout
      *
      * @return Response
      */
-    public function renderPage($view, $isAjax = false)
+    public function renderPage($view, $layout = null)
     {
         $event = new \Victoire\Bundle\PageBundle\Event\Menu\PageMenuContextualEvent($view);
 
         //Set currentView and dispatch victoire.on_render_page event with this currentView
-        $this->currentViewHelper->setCurrentView($view);
         $pageRenderEvent = new PageRenderEvent($view);
         $this->eventDispatcher->dispatch('victoire.on_render_page', $pageRenderEvent);
+        $this->currentViewHelper->setCurrentView($view);
 
         //Build WidgetMap
-        $this->widgetMapBuilder->build($view, $this->entityManager, true);
+        $this->widgetMapBuilder->build($view, true);
 
         //Populate widgets with their data
         $this->widgetDataWarmer->warm($this->entityManager, $view);
@@ -209,19 +217,21 @@ class PageHelper
                 $event = new \Victoire\Bundle\PageBundle\Event\Menu\PageMenuContextualEvent($view->getTemplate());
             }
             $this->eventDispatcher->dispatch($eventName, $event);
-            $type = $view->getBusinessEntityId();
+            $type = $view->getBusinessEntity()->getName();
         } else {
             $type = $view->getType();
         }
 
-        $eventName = 'victoire_core.'.$type.'_menu.contextual';
+        $eventName = 'victoire_core.'.strtolower($type).'_menu.contextual';
         $this->eventDispatcher->dispatch($eventName, $event);
 
-        //Determine which layout to use
-        $layout = $this->guessBestLayoutForView($view, $isAjax);
+        if (null === $layout) {
+            //Determine which layout to use
+            $layout = $this->guessBestLayoutForView($view);
+        }
 
         //Create the response
-        $response = $this->container->get('templating')->renderResponse('VictoireCoreBundle:Layout:'.$layout, [
+        $response = $this->container->get('templating')->renderResponse('VictoireCoreBundle:Layout:'.$layout.'.html.twig', [
             'view' => $view,
         ]);
 
@@ -231,8 +241,8 @@ class PageHelper
     /**
      * populate the page with given entity.
      *
-     * @param View           $page
-     * @param BusinessEntity $entity
+     * @param View                    $page
+     * @param BusinessEntityInterface $entity
      */
     public function updatePageWithEntity(BusinessTemplate $page, $entity)
     {
@@ -246,18 +256,29 @@ class PageHelper
     }
 
     /**
-     * @param BusinessPageReference $viewReference
+     * @param ViewReference $viewReference
      *
-     * @return BusinessPage
-     *                      read the cache to find entity according tu given url.
-     * @return object|null
+     * @return BusinessEntityInterface
+     *                                 read the cache to find entity according tu given url.
      */
     protected function findEntityByReference(ViewReference $viewReference)
     {
+        $entity = null;
         if ($viewReference instanceof BusinessPageReference && !empty($viewReference->getEntityId())) {
-            return $this->entityManager->getRepository($viewReference->getEntityNamespace())
-                ->findOneById($viewReference->getEntityId());
+            $businessEntity = $this->entityManager->getRepository('VictoireBusinessEntityBundle:BusinessEntity')
+                ->findOneBy(['id' => $viewReference->getBusinessEntity()]);
+            if ($businessEntity->getType() === ORMBusinessEntity::TYPE) {
+                $entity = $this->entityManager->getRepository($businessEntity->getClass())
+                    ->findOneBy(['id' => $viewReference->getEntityId()]);
+            } else {
+                $entityProxy = new EntityProxy();
+                $entityProxy->setBusinessEntity($businessEntity);
+                $entityProxy->setRessourceId($viewReference->getEntityId());
+                $entity = $this->apiBusinessEntityResolver->getBusinessEntity($entityProxy);
+            }
         }
+
+        return $entity;
     }
 
     /**
@@ -272,13 +293,16 @@ class PageHelper
             if ($viewReference->getViewId()) { //BusinessPage
                 $page = $this->entityManager->getRepository('VictoireCoreBundle:View')
                     ->findOneBy([
-                        'id'     => $viewReference->getViewId(),
+                        'id' => $viewReference->getViewId(),
                     ]);
+                $entity = $this->container->get('victoire_business_entity.resolver.business_entity_resolver')->getBusinessEntity($page->getEntityProxy());
+                $page->getEntityProxy()->setEntity($entity);
+
                 $page->setCurrentLocale($viewReference->getLocale());
             } else { //VirtualBusinessPage
                 $page = $this->entityManager->getRepository('VictoireCoreBundle:View')
                     ->findOneBy([
-                        'id'     => $viewReference->getTemplateId(),
+                        'id' => $viewReference->getTemplateId(),
                     ]);
                 if ($entity = $this->findEntityByReference($viewReference)) {
                     if ($page instanceof BusinessTemplate) {
@@ -290,12 +314,28 @@ class PageHelper
                         }
                         $this->pageSeoHelper->updateSeoByEntity($page, $entity);
                     }
+                    $entityProxy = new EntityProxy();
+                    $accessor = new PropertyAccessor();
+
+                    if (method_exists($entity, 'getId')) {
+                        $entityId = $entity->getId();
+                    } else {
+                        $entityId = $accessor->getValue($entity, $page->getBusinessEntity()->getBusinessIdentifiers()->first()->getName());
+                    }
+                    $entityProxy->setRessourceId($entityId);
+                    $this->findEntityByReference($viewReference);
+
+                    $entityProxy->setBusinessEntity($this->entityManager->getRepository('VictoireBusinessEntityBundle:BusinessEntity')
+                        ->findOneById($viewReference->getBusinessEntity()));
+                    $entityProxy->setEntity($entity);
+
+                    $page->setEntityProxy($entityProxy);
                 }
             }
         } elseif ($viewReference instanceof ViewReference) {
             $page = $this->entityManager->getRepository('VictoireCoreBundle:View')
                 ->findOneBy([
-                    'id'     => $viewReference->getViewId(),
+                    'id' => $viewReference->getViewId(),
                 ]);
             $page->setCurrentLocale($viewReference->getLocale());
         } else {
@@ -303,20 +343,6 @@ class PageHelper
         }
 
         return $page;
-    }
-
-    /**
-     * @param View $page
-     * @param $locale
-     */
-    private function refreshPage($page, $locale)
-    {
-        if ($page && $page instanceof View) {
-            try {
-                $this->entityManager->refresh($page->setTranslatableLocale($locale));
-            } catch (ORMInvalidArgumentException $e) {
-            }
-        }
     }
 
     /**
@@ -357,9 +383,12 @@ class PageHelper
                 throw new AccessDeniedException('You are not allowed to see this page');
             }
         } elseif ($page instanceof BusinessPage) {
-            $entity = $page->getBusinessEntity();
-            if (!$entity->isVisibleOnFront() && !$this->authorizationChecker->isGranted('ROLE_VICTOIRE')) {
-                throw new NotFoundHttpException('The BusinessPage for '.get_class($entity).'#'.$entity->getId().' is not visible on front.');
+            if ($entity = $page->getEntity()) {
+                if ($page->getBusinessEntity()->getType() === ORMBusinessEntity::TYPE && !$entity->isVisibleOnFront() && !$this->authorizationChecker->isGranted('ROLE_VICTOIRE')) {
+                    throw new NotFoundHttpException('The BusinessPage for '.get_class($entity).'#'.$entity->getId().' is not visible on front.');
+                }
+            } else {
+                throw new NotFoundHttpException('The BusinessPage has no related entity.');
             }
             if (!$page->getId()) {
                 $entityAllowed = $this->businessPageHelper->isEntityAllowed($page->getTemplate(), $entity, $this->entityManager);
@@ -373,7 +402,7 @@ class PageHelper
         if (!$this->authorizationChecker->isGranted('ROLE_VICTOIRE')) {
             $roles = $this->getPageRoles($page);
             if ($roles && !$this->authorizationChecker->isGranted($roles, $entity)) {
-                throw new AccessDeniedException('You are not allowed to see this page, see the access roles defined in the view or it\'s parents and templates');
+                throw new AccessDeniedException('You are not allowed to see this page, see the access roles defined in the view or its parents and templates');
             }
         }
     }
@@ -417,21 +446,18 @@ class PageHelper
      * Guess which layout to use for a given View.
      *
      * @param View $view
-     * @param bool $isAjax
      *
      * @return string
      */
-    private function guessBestLayoutForView(View $view, $isAjax)
+    private function guessBestLayoutForView(View $view)
     {
-        if ($isAjax) {
-            $viewLayout = 'modal';
-        } elseif (method_exists($view, 'getLayout') && $view->getLayout()) {
+        if (method_exists($view, 'getLayout') && $view->getLayout()) {
             $viewLayout = $view->getLayout();
         } else {
             $viewLayout = $view->getTemplate()->getLayout();
         }
 
-        return $viewLayout.'.html.twig';
+        return $viewLayout;
     }
 
     /**
@@ -464,5 +490,26 @@ class PageHelper
         if ($roles) {
             return array_unique(explode(',', $roles));
         }
+    }
+
+    /**
+     * Set Page position.
+     *
+     * @param BasePage $page
+     *
+     * @return BasePage $page
+     */
+    public function setPosition(BasePage $page)
+    {
+        if ($page->getParent()) {
+            $pageNb = count($page->getParent()->getChildren());
+        } else {
+            $pageNb = count($this->entityManager->getRepository('VictoirePageBundle:BasePage')->findByParent(null));
+        }
+
+        // + 1 because position start at 1, not 0
+        $page->setPosition($pageNb + 1);
+
+        return $page;
     }
 }

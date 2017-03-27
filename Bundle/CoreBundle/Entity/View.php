@@ -3,12 +3,12 @@
 namespace Victoire\Bundle\CoreBundle\Entity;
 
 use Doctrine\Common\Collections\ArrayCollection;
-use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Gedmo\Mapping\Annotation as Gedmo;
 use Knp\DoctrineBehaviors\Model\Translatable\Translatable;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Victoire\Bundle\BusinessPageBundle\Entity\BusinessTemplate;
+use Victoire\Bundle\BusinessPageBundle\Entity\VirtualBusinessPage;
 use Victoire\Bundle\TemplateBundle\Entity\Template;
 use Victoire\Bundle\ViewReferenceBundle\ViewReference\ViewReference;
 use Victoire\Bundle\WidgetBundle\Entity\Widget;
@@ -101,7 +101,7 @@ abstract class View
     protected $root;
 
     /**
-     * @ORM\OneToMany(targetEntity="View", mappedBy="parent", cascade={"remove"})
+     * @ORM\OneToMany(targetEntity="View", mappedBy="parent", cascade={"remove", "persist"})
      * @ORM\OrderBy({"lft" = "ASC"})
      */
     protected $children = [];
@@ -167,13 +167,17 @@ abstract class View
     protected $roles;
 
     /**
+     * @var array
+     */
+    protected $builtWidgetMap;
+
+    /**
      * Construct.
      **/
     public function __construct()
     {
         $this->children = new ArrayCollection();
         $this->widgetMaps = new ArrayCollection();
-        $this->translations = new ArrayCollection();
         $this->references = [];
     }
 
@@ -224,7 +228,7 @@ abstract class View
     /**
      * Get template.
      *
-     * @return string
+     * @return View
      */
     public function getTemplate()
     {
@@ -239,6 +243,9 @@ abstract class View
     public function setParent(View $parent = null)
     {
         $this->parent = $parent;
+        if ($parent && !($this instanceof VirtualBusinessPage)) {
+            $parent->addChild($this);
+        }
     }
 
     /**
@@ -518,9 +525,9 @@ abstract class View
     }
 
     /**
-     * Get widgets.
+     * Get WidgetMaps.
      *
-     * @return Collection[WidgetMap]
+     * @return WidgetMap[]
      */
     public function getWidgetMaps()
     {
@@ -528,9 +535,9 @@ abstract class View
     }
 
     /**
-     * Add widget.
+     * Add WidgetMap.
      *
-     * @param Widget $widgetMap
+     * @param WidgetMap $widgetMap
      */
     public function addWidgetMap(WidgetMap $widgetMap)
     {
@@ -551,22 +558,24 @@ abstract class View
     }
 
     /**
-     * Get widgets ids as array.
+     * Get WidgetMaps for View and its Templates.
      *
-     * @return array
+     * @return WidgetMap[]
      */
-    public function getWidgetsIds()
+    public function getWidgetMapsForViewAndTemplates()
     {
-        $widgetIds = [];
-        foreach ($this->getBuiltWidgetMap() as $slot => $_widgetMaps) {
-            foreach ($_widgetMaps as $widgetMap) {
-                foreach ($widgetMap->getWidgets() as $widget) {
-                    $widgetIds[] = $widget->getId();
-                }
-            }
+        $widgetMaps = [];
+
+        foreach ($this->getWidgetMaps() as $_widgetMap) {
+            $widgetMaps[] = $_widgetMap;
         }
 
-        return $widgetIds;
+        if ($template = $this->getTemplate()) {
+            $templateWidgetMaps = $template->getWidgetMapsForViewAndTemplates();
+            $widgetMaps = array_merge($widgetMaps, $templateWidgetMaps);
+        }
+
+        return $widgetMaps;
     }
 
     /**
@@ -582,7 +591,7 @@ abstract class View
     /**
      * Set builtWidgetMap.
      *
-     * @param string $builtWidgetMap
+     * @param array $builtWidgetMap
      *
      * @return $this
      */
@@ -634,6 +643,7 @@ abstract class View
      */
     public function getReference($locale = null)
     {
+        /** @var string $locale */
         $locale = $locale ?: $this->getCurrentLocale();
         if (is_array($this->references) && isset($this->references[$locale])) {
             return $this->references[$locale];
@@ -674,6 +684,7 @@ abstract class View
      */
     public function setReference(ViewReference $reference = null, $locale = null)
     {
+        /** @var string $locale */
         $locale = $locale ?: $this->getCurrentLocale();
         $this->references[$locale] = $reference;
 
@@ -714,7 +725,7 @@ abstract class View
 
     /**
      * @deprecated
-     * Get widgetMap.
+     * Get widgetMap
      *
      * @return widgetMap
      */
@@ -725,7 +736,7 @@ abstract class View
 
     /**
      * @deprecated
-     * Get widgets.
+     * Get widgets
      *
      * @return string
      */
@@ -734,6 +745,11 @@ abstract class View
         return $this->widgets;
     }
 
+    /**
+     * @param View $view
+     *
+     * @return bool
+     */
     public function isTemplateOf(View $view)
     {
         while ($_view = $view->getTemplate()) {

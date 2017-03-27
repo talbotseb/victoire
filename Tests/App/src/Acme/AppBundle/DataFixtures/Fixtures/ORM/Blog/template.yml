@@ -1,0 +1,41 @@
+Victoire\Bundle\BlogBundle\Entity\ArticleTemplate:
+    template_article:
+        currentLocale: fr
+        name: "{{item.name}}"
+        backendName: "First blog template"
+        slug: "{{item.slug}}"
+        businessEntity: @article_business_entity
+        author: @anakin
+        template: @template_base
+        status: published
+        parent: @blog-jedi-network
+        publishedAt: <dateTime('now')>
+        createdAt: <dateTime('now')>
+        updatedAt: <dateTime('now')>
+        cssUpToDate: false
+    template_article_2:
+        currentLocale: fr
+        name: "{{item.name}}"
+        backendName: "Second blog template"
+        slug: "{{item.slug}}"
+        businessEntity: @article_business_entity
+        author: @anakin
+        template: @template_base
+        status: published
+        parent: @blog-jedi-network
+        publishedAt: <dateTime('now')>
+        createdAt: <dateTime('now')>
+        updatedAt: <dateTime('now')>
+        cssUpToDate: false
+
+Victoire\Bundle\I18nBundle\Entity\ViewTranslation:
+    template_article_en_name:
+        name: "{{item.name}}"
+        slug: "{{item.slug}}"
+        locale: en
+        translatable: @template_article
+    template_article_2_en_name:
+        name: "{{item.name}}"
+        slug: "{{item.slug}}"
+        locale: en
+        translatable: @template_article_2

@@ -2,10 +2,13 @@
 
 namespace Victoire\Tests\Features\Context;
 
+use Behat\Behat\Hook\Scope\AfterStepScope;
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
+use Behat\Mink\Driver\Selenium2Driver;
+use Behat\Mink\Element\DocumentElement;
 use Behat\Mink\Element\Element;
+use Behat\Mink\Session;
 use Behat\Symfony2Extension\Context\KernelDictionary;
-use Knp\FriendlyContexts\Context\MinkContext;
 use Knp\FriendlyContexts\Context\RawMinkContext;
 
 /**
@@ -18,11 +21,15 @@ class VictoireContext extends RawMinkContext
     use KernelDictionary;
     protected $minkContext;
 
-    /** @BeforeScenario */
+    /**
+     * @BeforeScenario
+     *
+     * @param BeforeScenarioScope $scope
+     */
     public function gatherContexts(BeforeScenarioScope $scope)
     {
         $environment = $scope->getEnvironment();
-        $this->minkContext = $environment->getContext('Knp\FriendlyContexts\Context\MinkContext');
+        $this->minkContext = $environment->getContext('Victoire\Tests\Features\Context\MinkContext');
     }
 
     /**
@@ -34,6 +41,42 @@ class VictoireContext extends RawMinkContext
     {
         $viewsReferences = $this->getContainer()->get('victoire_core.view_helper')->buildViewsReferences();
         $this->getContainer()->get('victoire_view_reference.manager')->saveReferences($viewsReferences);
+    }
+
+    /**
+     * @AfterStep
+     *
+     * @param AfterStepScope $scope
+     *
+     * @throws \Exception
+     */
+    public function lookForJSErrors(AfterStepScope $scope)
+    {
+        /* @var Session $session */
+        $session = $this->getSession();
+
+        if (!($session->getDriver() instanceof Selenium2Driver)) {
+            return;
+        }
+
+        try {
+            $errors = $session->evaluateScript('window.jsErrors');
+            $session->evaluateScript('window.jsErrors = []');
+        } catch (\Exception $e) {
+            throw $e;
+        }
+        if (!$errors || empty($errors)) {
+            return;
+        }
+        $file = sprintf('%s:%d', $scope->getFeature()->getFile(), $scope->getStep()->getLine());
+        $message = sprintf('Found %d javascript error%s', count($errors), count($errors) > 0 ? 's' : '');
+        echo '-------------------------------------------------------------'.PHP_EOL;
+        echo $file.PHP_EOL;
+        echo $message.PHP_EOL;
+        echo '-------------------------------------------------------------'.PHP_EOL;
+        foreach ($errors as $index => $error) {
+            echo sprintf('   #%d: %s', $index, $error).PHP_EOL;
+        }
     }
 
     /**
@@ -53,7 +96,8 @@ class VictoireContext extends RawMinkContext
     public function iLoginAsVisitor()
     {
         $this->getSession()->getDriver()->stop();
-        $url = 'http://z6po@victoire.io:test@fr.victoire.io:8000';
+        $baseUrl = $this->minkContext->getMinkParameter('base_url');
+        $url = str_replace('anakin@victoire.io:test', 'z6po@victoire.io:test', $baseUrl);
         $this->minkContext->setMinkParameter('base_url', $url);
     }
 
@@ -92,7 +136,7 @@ class VictoireContext extends RawMinkContext
      */
     public function iSwitchToMode($mode)
     {
-        $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', 'descendant-or-self::*[@data-mode="admin-'.$mode.'"]');
+        $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', 'descendant-or-self::*[@for="mode-switcher--'.$mode.'"]');
 
         if (null === $element) {
             $message = sprintf('Element not found in the page after 10 seconds"');
@@ -106,7 +150,134 @@ class VictoireContext extends RawMinkContext
      */
     public function iOpenTheHamburgerMenu()
     {
-        $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', 'descendant-or-self::*[@id="vic-menu-leftnavbar-trigger"]');
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'xpath',
+            'descendant-or-self::*[@id="vic-menu-leftnavbar-trigger"]'
+        );
+
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @When I open the widget mode drop for entity :entity
+     */
+    public function iOpenTheWidgetModeDrop($entity)
+    {
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'css',
+            '[id^="picker-'.strtolower($entity).'"] .v-mode-trigger'
+        );
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @When I open the widget style tab :key
+     */
+    public function iOpenTheWidgetStyleTab($key)
+    {
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'css',
+            '[title="style-'.$key.'"]'
+        );
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @When I follow the float action button
+     */
+    public function iFollowTheFloatAction()
+    {
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'css',
+            '#v-float-container [data-flag="v-drop v-drop-fab"]'
+        );
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @When I open the widget quantum collapse for entity :entity
+     */
+    public function iOpenTheWidgetQuantumCollapse($entity)
+    {
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'css',
+            '[id^="picker-'.strtolower($entity).'"][data-state="visible"] [id^="picker-'.strtolower($entity).'"][data-state="visible"] .v-widget-form__quantum-btn'
+        );
+
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @When I open the widget quantum collapse when static
+     */
+    public function iOpenTheWidgetQuantumCollapseWhenStatic()
+    {
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'css',
+            '[data-state="visible"] [id^="picker-static"] .v-widget-form__quantum-btn'
+        );
+
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @Then /^I open the settings menu$/
+     */
+    public function iOpenTheSettingsMenu()
+    {
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'xpath',
+            'descendant-or-self::*[@id="v-settings-link"]'
+        );
+
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @Then /^I open the additionals menu drop$/
+     */
+    public function iOpenTheAdditionalsMenuDrop()
+    {
+        $element = $this->findOrRetry(
+            $this->getSession()->getPage(),
+            'xpath',
+            'descendant-or-self::*[@id="v-additionals-drop"]'
+        );
 
         if (null === $element) {
             $message = sprintf('Element not found in the page after 10 seconds"');
@@ -120,13 +291,52 @@ class VictoireContext extends RawMinkContext
      */
     public function iFollowTheTab($name)
     {
-        $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', sprintf('descendant-or-self::a[@data-toggle="vic-tab" and normalize-space(text()) = "%s"]', $name));
+        $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', sprintf('descendant-or-self::a[contains(@class, "v-tabs-nav__anchor") and normalize-space(text()) = "%s"]', $name));
+
+        // @TODO When the new styleguide is completly integrated, remove.
+        if (null === $element) {
+            $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', sprintf('descendant-or-self::a[@data-toggle="vic-tab" and normalize-space(text()) = "%s"]', $name));
+        }
 
         if (null === $element) {
             $message = sprintf('Element not found in the page after 10 seconds"');
             throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
         }
         $element->click();
+    }
+
+    /**
+     * @When I follow the drop trigger :name
+     */
+    public function iFollowTheDropTrigger($name)
+    {
+        $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', sprintf('descendant-or-self::a[@data-flag*="v-drop" and normalize-space(text()) = "%s"]', $name));
+
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+        $element->click();
+    }
+
+    /**
+     * @When I follow the drop anchor :name
+     */
+    public function iFollowTheDropAnchor($name)
+    {
+        $page = $this->getSession()->getPage();
+        $elements = $page->findAll('xpath', sprintf('descendant-or-self::a[contains(@class, "v-drop__anchor") and normalize-space(text()) = "%s"]', $name));
+
+        if (count($elements) < 1) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+
+        foreach ($elements as $element) {
+            if ($element->getText() === $name) {
+                $element->click();
+            }
+        }
     }
 
     /**
@@ -150,7 +360,7 @@ class VictoireContext extends RawMinkContext
      */
     public function iEditTheWidget($widgetType)
     {
-        $selector = sprintf('.vic-widget-%s > a.vic-hover-widget', strtolower($widgetType));
+        $selector = sprintf('.v-widget--%s > a.v-widget__overlay', strtolower($widgetType));
         $session = $this->getSession(); // get the mink session
         $element = $this->findOrRetry($session->getPage(), 'css', $selector);
 
@@ -218,27 +428,15 @@ class VictoireContext extends RawMinkContext
     }
 
     /**
-     * Try to find value in element and retry for a given time.
-     *
-     * @param Element $element
-     * @param string  $selectorType xpath|css
-     * @param string  $value
-     * @param int     $timeout
+     * @Then I should see disable drop anchor :name
      */
-    protected function findOrRetry(Element $element, $selectorType, $value, $timeout = 10000)
+    public function iShouldSeeDisableDropAnchor($name)
     {
-        if ($timeout <= 0) {
-            return;
-        }
+        $element = $this->findOrRetry($this->getSession()->getPage(), 'xpath', sprintf('descendant-or-self::*[contains(@class, \'v-drop__anchor--disabled\') and normalize-space(.) = "%s"]', $name));
 
-        $item = $element->find($selectorType, $value);
-
-        if ($item) {
-            return $item;
-        } else {
-            $this->getSession()->wait(100);
-
-            return $this->findOrRetry($element, $selectorType, $value, $timeout - 100);
+        if (null === $element) {
+            $message = sprintf('Element not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
         }
     }
 
@@ -266,5 +464,210 @@ class VictoireContext extends RawMinkContext
         $js = 'updateWidgetPosition({"parentWidgetMap": '.$widgetMapMovedTo.', "slot": "main_content", "position": "'.$position.'", "widgetMap": '.$widgetMapMoved.'})';
 
         $this->getSession()->executeScript($js);
+    }
+
+    /**
+     * @When /^I rename quantum "(.+)" with "(.+)"$/
+     */
+    public function iRenameQuantumWith($quantumPosition, $name)
+    {
+        $session = $this->getSession();
+
+        $pencilSelector = sprintf('descendant-or-self::ul[contains(@class, \'vic-quantum-nav\')]/li[%s]/a/i[contains(@class, \'fa-pencil\')]', $quantumPosition);
+        $pencil = $this->findOrRetry($session->getPage(), 'xpath', $pencilSelector);
+        $pencil->click();
+
+        $input = $this->findOrRetry($session->getPage(), 'css', '.quantum-edit-field');
+        $input->setValue($name);
+
+        //Click outside
+        $list = $this->findOrRetry($session->getPage(), 'css', '.vic-quantum-nav');
+        $list->click();
+    }
+
+    /**
+     * @When /^I select quantum "(.+)"$/
+     */
+    public function iSelectQuantum($quantumName)
+    {
+        $session = $this->getSession();
+
+        $quantumSelector = sprintf('descendant-or-self::a[contains(@class, \'v-btn--quantum\') and normalize-space(.) = "%s"]', $quantumName);
+        $quantum = $this->findOrRetry($session->getPage(), 'xpath', $quantumSelector);
+        $quantum->click();
+    }
+
+    /**
+     * @When /^I create a new quantum$/
+     */
+    public function iCreateANewQuantum()
+    {
+        $session = $this->getSession();
+
+        $element = $this->findOrRetry($session->getPage(), 'css', '#widget-new-tab');
+        $element->click();
+    }
+
+    /**
+     * @When I select :arg1 from the collapse menu
+     */
+    public function iSelectFromTheCollapseMenu($name)
+    {
+        $page = $this->getSession()->getPage();
+
+        $menus = $page->findAll('xpath', sprintf('descendant-or-self::a[contains(@class, "v-mode-trigger")]'));
+        if (count($menus) < 1) {
+            $message = sprintf('Collapse menu not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+
+        foreach ($menus as $menu) {
+            if ($menu->isVisible()) {
+                $menu->click();
+            }
+        }
+
+        $links = $menu = $page->findAll('xpath', sprintf('descendant-or-self::div[contains(@class, "v-drop__menu")]//a[contains(@class, "v-drop__anchor") and normalize-space(text()) = "%s"]', $name));
+
+        if (count($links) < 1) {
+            $message = sprintf('Menu link not found in the page after 10 seconds"');
+            throw new \Behat\Mink\Exception\ResponseTextException($message, $this->getSession());
+        }
+
+        foreach ($links as $link) {
+            if ($link->getText() === $name) {
+                $link->click();
+            }
+        }
+    }
+
+    /**
+     * Try to find value in element and retry for a given time.
+     *
+     * @param Element $element
+     * @param string  $selectorType xpath|css
+     * @param string  $value
+     * @param int     $timeout
+     *
+     * @return \Behat\Mink\Element\NodeElement|mixed|null|void
+     */
+    protected function findOrRetry(Element $element, $selectorType, $value, $timeout = 10000)
+    {
+        if ($timeout <= 0) {
+            return;
+        }
+
+        $item = $element->find($selectorType, $value);
+
+        if ($item) {
+            return $item;
+        } else {
+            $this->getSession()->wait(100);
+
+            return $this->findOrRetry($element, $selectorType, $value, $timeout - 100);
+        }
+    }
+
+    /**
+     * Fill Select2 input field and select a value.
+     *
+     * @When /^(?:|I )fill in select2 input "(?P<field>(?:[^"]|\\")*)" with "(?P<value>(?:[^"]|\\")*)" and select "(?P<entry>(?:[^"]|\\")*)"$/
+     */
+    public function iFillInSelect2InputWithAndSelect($field, $value, $entry)
+    {
+        $page = $this->getSession()->getPage();
+        $this->openField($page, $field);
+        $this->fillSearchField($page, $field, $value);
+        $this->selectValue($page, $field, $entry);
+    }
+
+    /**
+     * Open Select2 choice list.
+     *
+     * @param DocumentElement $page
+     * @param string          $field
+     *
+     * @throws \Exception
+     */
+    private function openField(DocumentElement $page, $field)
+    {
+        $fieldName = sprintf('select[name="%s"] + .select2-container', $field);
+        $inputField = $page->find('css', $fieldName);
+        if (!$inputField) {
+            throw new \Exception(sprintf('No field "%s" found', $field));
+        }
+        $choice = $inputField->find('css', '.select2-selection');
+        if (!$choice) {
+            throw new \Exception(sprintf('No select2 choice found for "%s"', $field));
+        }
+        $choice->press();
+    }
+
+    /**
+     * Fill Select2 search field.
+     *
+     * @param DocumentElement $page
+     * @param string          $field
+     * @param string          $value
+     *
+     * @throws \Exception
+     */
+    private function fillSearchField(DocumentElement $page, $field, $value)
+    {
+        $driver = $this->getSession()->getDriver();
+        if ('Behat\Mink\Driver\Selenium2Driver' === get_class($driver)) {
+            // Can't use `$this->getSession()->getPage()->find()` because of https://github.com/minkphp/MinkSelenium2Driver/issues/188
+            $select2Input = $this->getSession()->getDriver()->getWebDriverSession()->element('xpath', "//html/descendant-or-self::*[@class and contains(concat(' ', normalize-space(@class), ' '), ' select2-search__field ')]");
+            if (!$select2Input) {
+                throw new \Exception(sprintf('No field "%s" found', $field));
+            }
+            $select2Input->postValue(['value' => [$value]]);
+        } else {
+            $select2Input = $page->find('css', '.select2-search__field');
+            if (!$select2Input) {
+                throw new \Exception(sprintf('No input found for "%s"', $field));
+            }
+            $select2Input->setValue($value);
+        }
+        $this->waitForLoadingResults();
+    }
+
+    /**
+     * Select value in choice list.
+     *
+     * @param DocumentElement $page
+     * @param string          $field
+     * @param string          $value
+     *
+     * @throws \Exception
+     */
+    private function selectValue(DocumentElement $page, $field, $value)
+    {
+        $this->waitForLoadingResults();
+        $chosenResults = $page->findAll('css', '.select2-results li');
+        foreach ($chosenResults as $result) {
+            if ($result->getText() == $value) {
+                $result->click();
+
+                return;
+            }
+        }
+        throw new \Exception(sprintf('Value "%s" not found for "%s"', $value, $field));
+    }
+
+    /**
+     * Wait the end of fetching Select2 results.
+     *
+     * @param int $time Time to wait in seconds
+     */
+    private function waitForLoadingResults($time = 60)
+    {
+        for ($i = 0; $i < $time; $i++) {
+            if (!$this->getSession()->getPage()->find('css', '.select2-results__option.loading-results')) {
+                return true;
+            }
+            sleep(1);
+        }
+        throw new \Exception(sprintf('Results are not load after "%d" seconds.', $time));
     }
 }

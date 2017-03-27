@@ -38,6 +38,12 @@ services:
         tags:
             - { name: kernel.event_listener, event: victoire_core.article_template_menu.contextual, method: addContextual }
 
+    victoire_blog.blog_page_menu.contextual:
+        class: Victoire\Bundle\PageBundle\Listener\PageMenuListener
+        arguments: ["@victoire_core.admin_menu_builder"]
+        tags:
+            - { name: kernel.event_listener, event: victoire_core.blog_menu.contextual, method: addContextual}
+
     ####################################################################################################################
     # Forms
     ####################################################################################################################
@@ -53,6 +59,15 @@ services:
         tags:
             - { name: form.type }
     #ARTICLE
+
+    victoire_blog.article.subscriber:
+        class: Victoire\Bundle\BlogBundle\Listener\ArticleSubscriber
+        arguments:
+            - @victoire_page.user_callable
+            - %victoire_core.user_class%
+        tags:
+            - { name: doctrine.event_subscriber, connection: default, priority: -11 }
+
     victoire_blog.article.form.type:
         class: Victoire\Bundle\BlogBundle\Form\ArticleType
         arguments:
@@ -142,6 +157,10 @@ services:
         class: Victoire\Bundle\BlogBundle\Manager\ArticleManager
         arguments:
             - "@doctrine.orm.entity_manager"
+            - @victoire_business_page.business_page_builder
+            - @victoire_business_page.transformer.virtual_to_business_page_transformer
+            - @victoire_page.page_helper
+            - @victoire_view_reference.repository
 
     #  ==================  Filter listener ================== #
     #

@@ -201,7 +201,7 @@ class WidgetController extends Controller
     public function editAction(Widget $widget, $viewReference, $mode = Widget::MODE_STATIC, $quantum = null, $businessEntityId = null)
     {
         $view = $this->getViewByReferenceId($viewReference);
-        $this->get('victoire_widget_map.builder')->build($view, $this->get('doctrine.orm.entity_manager'));
+        $this->get('victoire_widget_map.builder')->build($view);
         $this->get('victoire_widget_map.widget_data_warmer')->warm($this->getDoctrine()->getManager(), $view);
 
         if ($view instanceof BusinessTemplate && !$reference = $this->get('victoire_view_reference.repository')
@@ -231,6 +231,8 @@ class WidgetController extends Controller
     }
 
     /**
+     * @TODO Simplify Action when reorganize with editAction
+     *
      * Stylize a widget.
      *
      * @param Widget $widget        The widget to stylize
@@ -244,7 +246,7 @@ class WidgetController extends Controller
     public function stylizeAction(Request $request, Widget $widget, $viewReference)
     {
         $view = $this->getViewByReferenceId($viewReference);
-        $this->get('victoire_widget_map.builder')->build($view, $this->get('doctrine.orm.entity_manager'));
+        $this->get('victoire_widget_map.builder')->build($view);
 
         try {
             $widgetView = WidgetMapHelper::getWidgetMapByWidgetAndView($widget, $view)->getView();
@@ -309,13 +311,13 @@ class WidgetController extends Controller
             } else {
                 $widgets = $widget->getWidgetMap()->getWidgets();
                 $forms = [];
-                foreach ($widgets as $widget) {
-                    $forms[] = $this->get('form.factory')->create(WidgetStyleType::class, $widget, [
+                foreach ($widgets as $_widget) {
+                    $forms[] = $this->get('form.factory')->create(WidgetStyleType::class, $_widget, [
                             'method' => 'POST',
                             'action' => $this->generateUrl(
                                 'victoire_core_widget_stylize',
                                 [
-                                    'id'            => $widget->getId(),
+                                    'id'            => $_widget->getId(),
                                     'viewReference' => $viewReference,
                                 ]
                             ),
@@ -509,7 +511,7 @@ class WidgetController extends Controller
         $logger = $this->get('logger');
 
         //can we see the debug
-        $isDebugAllowed = $securityContext->isGranted('ROLE_VICTOIRE_PAGE_DEBUG');
+        $isDebugAllowed = $securityContext->isGranted('ROLE_VICTOIRE_PAGE_DEBUG') ? true : $this->get('kernel')->isDebug();
 
         //whatever is the exception, we log it
         $logger->error($ex->getMessage());

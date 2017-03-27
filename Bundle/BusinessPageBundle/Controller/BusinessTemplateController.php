@@ -34,17 +34,11 @@ class BusinessTemplateController extends Controller
      */
     public function indexAction()
     {
-        $businessEntityHelper = $this->get('victoire_core.helper.business_entity_helper');
-
-        //services
-        $em = $this->get('doctrine.orm.entity_manager');
-
-        //the repository
-        $repository = $em->getRepository('VictoireBusinessPageBundle:BusinessTemplate');
+        $repository = $this->get('doctrine.orm.entity_manager')->getRepository('VictoireBusinessPageBundle:BusinessTemplate');
 
         $BusinessTemplates = [];
 
-        $businessEntities = $businessEntityHelper->getBusinessEntities();
+        $businessEntities = $this->get('victoire_core.entity.business_entity_repository')->findAll();
 
         foreach ($businessEntities as $businessEntity) {
             $name = $businessEntity->getName();
@@ -56,11 +50,11 @@ class BusinessTemplateController extends Controller
         }
 
         return new JsonResponse([
-                'html'    => $this->container->get('templating')->render(
+                'html' => $this->container->get('templating')->render(
                     'VictoireBusinessPageBundle:BusinessEntity:index.html.twig',
                     [
-                        'businessEntities'           => $businessEntities,
-                        'BusinessTemplates'          => $BusinessTemplates,
+                        'businessEntities'  => $businessEntities,
+                        'BusinessTemplates' => $BusinessTemplates,
                     ]
                 ),
                 'success' => true,
@@ -68,7 +62,9 @@ class BusinessTemplateController extends Controller
     }
 
     /**
-     * show BusinessTemplate.
+     * Show BusinessTemplate.
+     *
+     * @param BusinessTemplate $view
      *
      * @Route("/show/{id}", name="victoire_business_template_show")
      * @ParamConverter("template", class="VictoireBusinessPageBundle:BusinessTemplate")
@@ -80,14 +76,6 @@ class BusinessTemplateController extends Controller
         //add the view to twig
         $this->get('twig')->addGlobal('view', $view);
         $view->setReference(new ViewReference($view->getId()));
-
-        $this->get('victoire_widget_map.builder')->build($view);
-        $this->get('victoire_widget_map.widget_data_warmer')->warm(
-            $this->get('doctrine.orm.entity_manager'),
-            $view
-        );
-
-        $this->container->get('victoire_core.current_view')->setCurrentView($view);
 
         return $this->container->get('victoire_page.page_helper')->renderPage($view);
     }
@@ -111,7 +99,7 @@ class BusinessTemplateController extends Controller
 
         /** @var BusinessTemplate $view */
         $view = $this->get('victoire_business_page.BusinessTemplate_chain')->getBusinessTemplate($id);
-        $view->setBusinessEntityId($businessEntity->getId());
+        $view->setBusinessEntity($businessEntity);
 
         $form = $this->createCreateForm($view);
 
@@ -149,7 +137,7 @@ class BusinessTemplateController extends Controller
      */
     private function createCreateForm(BusinessTemplate $view)
     {
-        $id = $view->getBusinessEntityId();
+        $id = $view->getBusinessEntityName();
 
         $businessProperties = $this->getBusinessProperties($view);
         $form = $this->createForm(
@@ -183,13 +171,13 @@ class BusinessTemplateController extends Controller
 
         /** @var BusinessTemplate $view */
         $view = $this->get('victoire_business_page.BusinessTemplate_chain')->getBusinessTemplate($id);
-        $view->setBusinessEntityId($businessEntity->getId());
+        $view->setBusinessEntity($businessEntity);
 
         $form = $this->createCreateForm($view);
 
         $parameters = [
-            'entity'             => $view,
-            'form'               => $form->createView(),
+            'entity' => $view,
+            'form'   => $form->createView(),
         ];
 
         return new JsonResponse([
@@ -215,16 +203,13 @@ class BusinessTemplateController extends Controller
      */
     public function editAction(View $view)
     {
-        $em = $this->getDoctrine()->getManager();
-
         $editForm = $this->createEditForm($view);
         $deleteForm = $this->createDeleteForm($view->getId());
 
-
         $parameters = [
-            'entity'             => $view,
-            'form'               => $editForm->createView(),
-            'delete_form'        => $deleteForm->createView(),
+            'entity'      => $view,
+            'form'        => $editForm->createView(),
+            'delete_form' => $deleteForm->createView(),
         ];
 
         return new JsonResponse([
@@ -374,8 +359,8 @@ class BusinessTemplateController extends Controller
 
         //parameters for the view
         return [
-            'BusinessTemplate'          => $view,
-            'items'                     => $bepHelper->getEntitiesAllowed($view, $this->get('doctrine.orm.entity_manager')),
+            'BusinessTemplate' => $view,
+            'items'            => $bepHelper->getEntitiesAllowed($view, $this->get('doctrine.orm.entity_manager')),
         ];
     }
 
@@ -390,8 +375,8 @@ class BusinessTemplateController extends Controller
     {
         $businessTemplateHelper = $this->get('victoire_business_page.business_page_helper');
         //the business property link to the page
-        $businessEntityId = $view->getBusinessEntityId();
-        $businessEntity = $this->get('victoire_core.helper.business_entity_helper')->findById($businessEntityId);
+        $businessEntityId = $view->getBusinessEntityName();
+        $businessEntity = $this->get('victoire_core.entity.business_entity_repository')->findOneBy(['name' => $businessEntityId]);
 
         $businessProperties = $businessTemplateHelper->getBusinessProperties($businessEntity);
 
@@ -403,7 +388,7 @@ class BusinessTemplateController extends Controller
      *
      * @throws Exception If the business entity was not found
      *
-     * @return template
+     * @return \Victoire\Bundle\BusinessEntityBundle\Entity\BusinessEntity
      */
     private function getBusinessEntity($id)
     {
@@ -411,7 +396,7 @@ class BusinessTemplateController extends Controller
         $businessEntityManager = $this->get('victoire_core.helper.business_entity_helper');
 
         //get the businessEntity
-        $businessEntity = $businessEntityManager->findById($id);
+        $businessEntity = $this->get('victoire_core.entity.business_entity_repository')->findOneBy(['name' => $id]);
 
         //test the result
         if ($businessEntity === null) {

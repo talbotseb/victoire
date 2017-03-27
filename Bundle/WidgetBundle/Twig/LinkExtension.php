@@ -87,11 +87,12 @@ class LinkExtension extends \Twig_Extension
             new \Twig_SimpleFunction('vic_link', [$this, 'victoireLink'], ['is_safe' => ['html']]),
             new \Twig_SimpleFunction('vic_menu_link', [$this, 'victoireMenuLink'], ['is_safe' => ['html']]),
             new \Twig_SimpleFunction('vic_business_link', [$this, 'victoireBusinessLink'], ['is_safe' => ['html']]),
+            new \Twig_SimpleFunction('is_vic_link_active', [$this, 'isVicLinkActive'], ['is_safe' => ['html']]),
         ];
     }
 
     /**
-     * Generate the complete link (with the a tag).
+     * Generate the complete URL of a link.
      *
      * @param array  $parameters   The link parameters (go to LinkTrait to have the list)
      * @param string $avoidRefresh Do we have to refresh or not ?
@@ -172,7 +173,7 @@ class LinkExtension extends \Twig_Extension
                 }
 
                 //Add anchor part
-                $url .= '#vic-widget-'.$attachedWidget->getId().'-container-anchor';
+                $url .= '#widget-'.$attachedWidget->getId();
                 break;
             default:
                 $url = $parameters['url'];
@@ -209,8 +210,8 @@ class LinkExtension extends \Twig_Extension
         }
 
         //Build the target attribute
-        if ($parameters['target'] == 'ajax-modal') {
-            $attr['data-toggle'] = 'ajax-modal';
+        if ($parameters['target'] == Link::TARGET_MODAL) {
+            $attr['data-toggle'] = 'viclink-modal';
         } elseif ($parameters['target'] == '') {
             $attr['target'] = '_parent';
         } else {
@@ -223,6 +224,11 @@ class LinkExtension extends \Twig_Extension
         }
 
         $url = $this->victoireLinkUrl($parameters, true, $url);
+        // if modalLayout is set, we add it as GET parameter
+        if ($parameters['target'] == Link::TARGET_MODAL && !empty($parameters['modalLayout'])) {
+            $url .= !preg_match('/\?/', $url) ? '?' : '&';
+            $url .= 'modalLayout='.$parameters['modalLayout'];
+        }
         //Creates a new twig environment
         $twig = new \Twig_Environment(new \Twig_Loader_Array(['linkTemplate' => '{{ link|raw }}']));
 
@@ -254,9 +260,8 @@ class LinkExtension extends \Twig_Extension
         }
         if (!$templateId) {
             $templateId = $this->BusinessPageHelper
-                ->guessBestPatternIdForEntity(new \ReflectionClass($businessEntityInstance), $businessEntityInstance->getId(), $this->em);
+                ->guessBestPatternIdForEntity($businessEntityInstance, $this->em);
         }
-
 
         $page = $this->pageHelper->findPageByParameters([
             'templateId' => $templateId,
@@ -275,6 +280,18 @@ class LinkExtension extends \Twig_Extension
         ];
 
         return $this->victoireLinkUrl($parameters);
+    }
+
+    /**
+     * Check if a given Link is active for current request.
+     *
+     * @param Link $link
+     *
+     * @return bool
+     */
+    public function isVicLinkActive(Link $link)
+    {
+        return $this->request && ($this->request->getRequestUri() == $this->victoireLinkUrl($link->getParameters(), false));
     }
 
     /**

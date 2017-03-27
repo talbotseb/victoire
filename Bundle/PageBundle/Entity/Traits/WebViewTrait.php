@@ -2,6 +2,7 @@
 
 namespace Victoire\Bundle\PageBundle\Entity\Traits;
 
+use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Victoire\Bundle\CoreBundle\Annotations as VIC;
 use Victoire\Bundle\PageBundle\Entity\PageStatus;
@@ -169,9 +170,16 @@ trait WebViewTrait
         return $this;
     }
 
-    public function getUrl()
+    /**
+     * Get url.
+     *
+     * @param null $currentLocale
+     *
+     * @return mixed
+     */
+    public function getUrl($currentLocale = null)
     {
-        return PropertyAccess::createPropertyAccessor()->getValue($this->translate(null, false), 'getUrl');
+        return PropertyAccess::createPropertyAccessor()->getValue($this->translate($currentLocale, false), 'getUrl');
     }
 
     public function setUrl($name, $locale = null)

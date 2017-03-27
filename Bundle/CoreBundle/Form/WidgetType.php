@@ -9,6 +9,7 @@ use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
+use Victoire\Bundle\CoreBundle\Form\Field\BusinessEntityHiddenType;
 use Victoire\Bundle\CriteriaBundle\Entity\Criteria;
 use Victoire\Bundle\CriteriaBundle\Form\Type\CriteriaType;
 use Victoire\Bundle\WidgetBundle\Model\Widget;
@@ -29,36 +30,41 @@ class WidgetType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options)
     {
         if ($options['businessEntityId'] !== null) {
-            if ($options['namespace'] === null) {
-                throw new \Exception('The namespace is mandatory if the business_entity_id is given.');
-            }
             if ($options['mode'] === null) {
                 throw new \Exception('The mode is mandatory if the business_entity_id is given.');
             }
         }
 
-        if ($options['mode'] === Widget::MODE_ENTITY) {
-            $this->addEntityFields($builder, $options);
-        }
-
-        if ($options['mode'] === Widget::MODE_QUERY) {
-            $this->addQueryFields($builder, $options);
-        }
-
-        if ($options['mode'] === Widget::MODE_BUSINESS_ENTITY) {
-            $this->addBusinessEntityFields($builder, $options);
+        switch ($options['mode']) {
+            case Widget::MODE_ENTITY:
+                $this->addEntityFields($builder, $options, $options['mode']);
+                break;
+            case Widget::MODE_QUERY:
+                $this->addQueryFields($builder, $options);
+                break;
+            case Widget::MODE_BUSINESS_ENTITY:
+                $this->addBusinessEntityFields($builder, $options);
+                break;
         }
 
         //add the mode to the form
         $builder->add('mode', HiddenType::class, [
             'data' => $options['mode'],
         ]);
-        $builder->add('asynchronous', null, [
+        $builder->add('asynchronous', AsynchronousType::class, [
                 'label'    => 'victoire.widget.type.asynchronous.label',
                 'required' => false,
+                'attr'     => [
+                    'class' => 'vic-col-xs-12',
+                ],
             ]);
         $builder->add('theme', HiddenType::class);
-        $builder->add('quantum', HiddenType::class);
+        $builder->add('quantum', QuantumType::class, [
+            'label'    => 'victoire.widget.type.quantum.label',
+            'attr'     => [
+                'data-flag' => 'v-quantum-name',
+            ],
+        ]);
 
         //add the slot to the form
         $builder->add('slot', HiddenType::class, []);
@@ -78,15 +84,17 @@ class WidgetType extends AbstractType
                 $form = $event->getForm();
 
                 //the controller does not use the mode to construct the form, so we update it automatically
-                if ($mode === Widget::MODE_ENTITY) {
-                    $this->addEntityFields($form, $options);
-                }
 
-                if ($mode === Widget::MODE_QUERY) {
-                    $this->addQueryFields($form, $options);
-                }
-                if ($mode === Widget::MODE_BUSINESS_ENTITY) {
-                    $this->addBusinessEntityFields($form, $options);
+                switch ($options['mode']) {
+                    case Widget::MODE_ENTITY:
+                        $this->addEntityFields($form, $options, $mode);
+                        break;
+                    case Widget::MODE_QUERY:
+                        $this->addQueryFields($form, $options);
+                        break;
+                    case Widget::MODE_BUSINESS_ENTITY:
+                        $this->addBusinessEntityFields($form, $options);
+                        break;
                 }
             }
         );
@@ -124,7 +132,7 @@ class WidgetType extends AbstractType
         );
         $builder->addEventListener(
             FormEvents::POST_SUBMIT,
-            function (FormEvent $event) use ($options) {
+            function (FormEvent $event) {
                 $widget = $event->getData();
                 /** @var Criteria $criteria */
                 foreach ($widget->getCriterias() as $criteria) {
@@ -145,9 +153,9 @@ class WidgetType extends AbstractType
     protected function addBusinessEntityFields($form, $options)
     {
         $form->add('fields', WidgetFieldsFormType::class, [
-            'label'     => 'widget.form.entity.fields.label',
-            'namespace' => $options['namespace'],
-            'widget'    => $options['widget'],
+            'label'            => 'widget.form.entity.fields.label',
+            'businessEntityId' => $options['businessEntityId'],
+            'widget'           => $options['widget'],
         ]);
     }
 
@@ -157,18 +165,18 @@ class WidgetType extends AbstractType
      * @param FormBuilderInterface|FormInterface $form
      * @param array                              $options
      */
-    protected function addEntityFields($form, $options)
+    protected function addEntityFields($form, $options, $mode)
     {
         $form
         ->add('fields', WidgetFieldsFormType::class, [
-            'label'     => 'widget.form.entity.fields.label',
-            'namespace' => $options['namespace'],
-            'widget'    => $options['widget'],
+            'label'            => 'widget.form.entity.fields.label',
+            'businessEntityId' => $options['businessEntityId'],
+            'widget'           => $options['widget'],
         ])
         ->add('entity_proxy', EntityProxyFormType::class, [
             'business_entity_id' => $options['businessEntityId'],
-            'namespace'          => $options['namespace'],
             'widget'             => $options['widget'],
+            'mode'               => $mode,
         ]);
     }
 
@@ -182,9 +190,13 @@ class WidgetType extends AbstractType
     {
         $form->add('query');
         $form->add('fields', WidgetFieldsFormType::class, [
-            'label'     => 'widget.form.entity.fields.label',
-            'namespace' => $options['namespace'],
-            'widget'    => $options['widget'],
+            'label'            => 'widget.form.entity.fields.label',
+            'businessEntityId' => $options['businessEntityId'],
+            'widget'           => $options['widget'],
+        ]);
+
+        $form->add('businessEntity', BusinessEntityHiddenType::class, [
+            'data' => $options['businessEntityId'],
         ]);
     }
 
@@ -204,7 +216,6 @@ class WidgetType extends AbstractType
         $resolver->setDefined([
             'widget',
             'slot',
-            'namespace',
             'businessEntityId',
             'dataSources',
         ]);

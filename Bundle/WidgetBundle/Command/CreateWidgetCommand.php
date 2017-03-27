@@ -277,7 +277,7 @@ EOT
         if (null === $parent && $questionHelper->ask($input, $output, $question)) {
             $output->writeln([
                 '',
-                'A widget can extends another to reproduce it\'s behavior',
+                'A widget can extends another to reproduce its behavior',
                 '',
                 'If you wabt to do so, please give the name of the widget to extend',
                 '',
@@ -403,7 +403,7 @@ EOT
      */
     protected function createWidgetGenerator()
     {
-        $generator = new WidgetGenerator($this->getContainer()->get('filesystem'));
+        $generator = new WidgetGenerator();
         $generator->setTemplating($this->getContainer()->get('twig'));
 
         return $generator;

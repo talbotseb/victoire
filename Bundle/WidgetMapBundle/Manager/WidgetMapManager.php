@@ -8,16 +8,29 @@ use Victoire\Bundle\WidgetBundle\Entity\Widget;
 use Victoire\Bundle\WidgetMapBundle\Builder\WidgetMapBuilder;
 use Victoire\Bundle\WidgetMapBundle\Entity\WidgetMap;
 use Victoire\Bundle\WidgetMapBundle\Helper\WidgetMapHelper;
+use Victoire\Bundle\WidgetMapBundle\Resolver\WidgetMapChildrenResolver;
 
 class WidgetMapManager
 {
     private $em;
     private $builder;
+    private $resolver;
 
-    public function __construct(EntityManager $em, WidgetMapBuilder $builder)
-    {
+    /**
+     * WidgetMapManager constructor.
+     *
+     * @param EntityManager             $em
+     * @param WidgetMapBuilder          $builder
+     * @param WidgetMapChildrenResolver $resolver
+     */
+    public function __construct(
+        EntityManager $em,
+        WidgetMapBuilder $builder,
+        WidgetMapChildrenResolver $resolver
+    ) {
         $this->em = $em;
         $this->builder = $builder;
+        $this->resolver = $resolver;
     }
 
     /**
@@ -32,10 +45,10 @@ class WidgetMapManager
             'slot'     => $slotId,
             'position' => $position,
             'parent'   => $widgetReference,
-            'action' => [
+            'action'   => [
                 WidgetMap::ACTION_CREATE,
-                WidgetMap::ACTION_OVERWRITE
-            ]
+                WidgetMap::ACTION_OVERWRITE,
+            ],
         ]);
 
         if ($quantum) {
@@ -63,8 +76,6 @@ class WidgetMapManager
      *
      * @param View  $view
      * @param array $sortedWidget
-     *
-     * @return void
      */
     public function move(View $view, $sortedWidget)
     {
@@ -78,7 +89,7 @@ class WidgetMapManager
         $originalParent = $widgetMap->getParent();
         $originalPosition = $widgetMap->getPosition();
 
-        $children = $widgetMap->getChildren($view);
+        $children = $this->resolver->getChildren($widgetMap, $view);
         $beforeChild = !empty($children[WidgetMap::POSITION_BEFORE]) ? $children[WidgetMap::POSITION_BEFORE] : null;
         $afterChild = !empty($children[WidgetMap::POSITION_AFTER]) ? $children[WidgetMap::POSITION_AFTER] : null;
 
@@ -86,8 +97,6 @@ class WidgetMapManager
 
         $widgetMap = $this->moveWidgetMap($view, $widgetMap, $parentWidgetMap, $position, $slot);
 
-        // If the moved widgetMap has someone at both his before and after, arbitrary move UP the before side
-        // and find the first place after the before widgetMap hierarchy to place the after widgetMap.
         $this->moveChildren($view, $beforeChild, $afterChild, $originalParent, $originalPosition);
 
         foreach ($parentWidgetMapChildren['views'] as $_view) {
@@ -120,15 +129,15 @@ class WidgetMapManager
         $originalParent = $widgetMap->getParent();
         $originalPosition = $widgetMap->getPosition();
 
-        $children = $widgetMap->getChildren($view);
+        $children = $this->resolver->getChildren($widgetMap, $view);
         $beforeChild = !empty($children[WidgetMap::POSITION_BEFORE]) ? $children[WidgetMap::POSITION_BEFORE] : null;
         $afterChild = !empty($children[WidgetMap::POSITION_AFTER]) ? $children[WidgetMap::POSITION_AFTER] : null;
 
         //we remove the widget from the current view
         if ($widgetMap->getView() === $view) {
             // If the widgetMap has substitutes, delete them or transform them in create mode
-            if (count($widgetMap->getSubstitutes()) > 0) {
-                foreach ($widgetMap->getSubstitutes() as $substitute) {
+            if (count($widgetMap->getAllSubstitutes()) > 0) {
+                foreach ($widgetMap->getAllSubstitutes() as $substitute) {
                     if ($substitute->getAction() === WidgetMap::ACTION_OVERWRITE) {
                         $substitute->setAction(WidgetMap::ACTION_CREATE);
                         $substitute->setReplaced(null);
@@ -151,7 +160,13 @@ class WidgetMapManager
             $view->addWidgetMap($replaceWidgetMap);
         }
 
+        //Move children for current WidgetMap View
         $this->moveChildren($view, $beforeChild, $afterChild, $originalParent, $originalPosition);
+
+        //Move children WidgetMap for children from other View
+        foreach ($widgetMap->getChildren() as $child) {
+            $this->moveWidgetMap($child->getView(), $child, $originalParent, $originalPosition);
+        }
     }
 
     /**
@@ -275,8 +290,8 @@ class WidgetMapManager
      */
     protected function getChildrenByView(WidgetMap $widgetMap)
     {
-        $beforeChilds = $widgetMap->getChilds(WidgetMap::POSITION_BEFORE);
-        $afterChilds = $widgetMap->getChilds(WidgetMap::POSITION_AFTER);
+        $beforeChilds = $widgetMap->getContextualChildren(WidgetMap::POSITION_BEFORE);
+        $afterChilds = $widgetMap->getContextualChildren(WidgetMap::POSITION_AFTER);
 
         $childrenByView['views'] = [];
         $childrenByView['before'] = [];

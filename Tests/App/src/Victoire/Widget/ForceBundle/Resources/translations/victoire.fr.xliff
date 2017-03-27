@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file date="2013-11-27T18:15:06Z" source-language="en" target-language="fr" datatype="plaintext" original="not.available">
+    <body>
+      <trans-unit id="58893bce9c1e0" resname="widget.force.new.action.label">
+	<source>widget.force.new.action.label</source>
+	<target state="new">Force</target>
+      </trans-unit>
+      <trans-unit id="58893bce9c207" resname="modal.form.widget.type.force.label">
+	<source>modal.form.widget.type.force.label</source>
+	<target state="new">Force</target>
+      </trans-unit>
+      <trans-unit id="58893bce9c2ab" resname="widget_force.form.side.label">
+	<source>widget_force.form.side.label</source>
+	<target>Côté de la force</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

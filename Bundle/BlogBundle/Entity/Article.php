@@ -8,6 +8,7 @@ use Gedmo\Timestampable\Traits\TimestampableEntity;
 use Knp\DoctrineBehaviors\Model\Translatable\Translatable;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\Validator\Constraints as Assert;
+use Victoire\Bundle\BusinessEntityBundle\Entity\BusinessEntityInterface;
 use Victoire\Bundle\BusinessEntityBundle\Entity\Traits\BusinessEntityTrait;
 use Victoire\Bundle\BusinessPageBundle\Entity\BusinessTemplate;
 use Victoire\Bundle\CoreBundle\Annotations as VIC;
@@ -16,10 +17,10 @@ use Victoire\Bundle\PageBundle\Entity\PageStatus;
 /**
  * @ORM\Entity(repositoryClass="Victoire\Bundle\BlogBundle\Repository\ArticleRepository"))
  * @ORM\Table("vic_article")
- * @VIC\BusinessEntity({"Date", "Force", "Redactor", "Listing", "BlogArticles", "Title", "CKEditor", "Text", "UnderlineTitle", "Cover", "Image", "Authorship", "ArticleList", "SliderNav"})
+ * @VIC\BusinessEntity({"Date", "Force", "Redactor", "Listing", "BlogArticles", "Title", "CKEditor", "Text", "UnderlineTitle", "Cover", "Image", "Authorship", "ArticleList", "SliderNav", "Render"})
  * @Gedmo\SoftDeleteable(fieldName="deletedAt", timeAware=false)
  */
-class Article
+class Article implements BusinessEntityInterface
 {
     use BusinessEntityTrait;
     use TimestampableEntity;
@@ -130,7 +131,7 @@ class Article
     private $publishedAtString;
 
     /**
-     * @VIC\BusinessProperty("textable")
+     * @VIC\BusinessProperty({"textable", "imageable"})
      */
     private $authorAvatar;
 
@@ -370,7 +371,7 @@ class Article
     /**
      * Set status.
      *
-     * @param status $status
+     * @param string $status
      */
     public function setStatus($status)
     {
@@ -383,7 +384,7 @@ class Article
     /**
      * Get status.
      *
-     * @return status
+     * @return string
      */
     public function getStatus()
     {
@@ -469,6 +470,9 @@ class Article
         return $this->locale;
     }
 
+    /**
+     * @return string
+     */
     public function getName()
     {
         return PropertyAccess::createPropertyAccessor()->getValue($this->translate(), 'getName');

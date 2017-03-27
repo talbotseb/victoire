@@ -16,13 +16,16 @@ use Victoire\Bundle\CoreBundle\Entity\View;
  */
 class PageSeoTranslation
 {
+    const SITEMAP_INDEXED_DEFAULT = true;
+    const SITEMAP_PRIORITY_DEFAULT = 0.5;
+
     use Translation;
 
     /**
      * @var string
      *
      * @ORM\Column(name="meta_title", type="string", nullable=true)
-     * @Assert\Length(max = 60)
+     * @Assert\Length(max = 65)
      */
     protected $metaTitle;
 
@@ -193,14 +196,14 @@ class PageSeoTranslation
      *
      * @ORM\Column(name="sitemap_indexed", type="boolean", nullable=true, options={"default" = true})
      */
-    protected $sitemapIndexed = true;
+    protected $sitemapIndexed = self::SITEMAP_INDEXED_DEFAULT;
 
     /**
      * @var float
      *
-     * @ORM\Column(name="sitemap_priority", type="float", nullable=true, options={"default" = "0.8"})
+     * @ORM\Column(name="sitemap_priority", type="float", nullable=true, options={"default" = "0.5"})
      */
-    protected $sitemapPriority = 0.8;
+    protected $sitemapPriority = self::SITEMAP_PRIORITY_DEFAULT;
 
     /**
      * @var string

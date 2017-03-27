@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file date="2013-11-27T18:15:06Z" source-language="en" target-language="fr" datatype="plaintext" original="not.available">
+    <body>
+      <trans-unit id="58893bce9aa2b" resname="widget_force.form.side.label">
+	<source>widget_force.form.side.label</source>
+	<target state="new">side</target>
+      </trans-unit>
+      <trans-unit id="58893bce9aa3d" resname="widget_force.show.forceSide">
+	<source>widget_force.show.forceSide</source>
+	<target>The %side% Side of the force</target>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

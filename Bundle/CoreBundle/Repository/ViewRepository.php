@@ -21,21 +21,6 @@ class ViewRepository extends NestedTreeRepository
     protected $mainAlias = 'view';
 
     /**
-     * Get the query builder for a view  by url.
-     *
-     * @param string $url The url
-     *
-     * @return \Doctrine\ORM\QueryBuilder The query builder
-     */
-    public function getOneByUrl($url)
-    {
-        return $this->createQueryBuilder($this->mainAlias)
-            ->where($this->mainAlias.'.url = (:url)')
-            ->setMaxResults(1)
-            ->setParameter('url', $url);
-    }
-
-    /**
      * Filter the query by the sitemap index (=visibility).
      *
      * @param bool $indexed
@@ -67,7 +52,7 @@ class ViewRepository extends NestedTreeRepository
         if ($excludeUnpublished) {
             $this->qb
                 ->andWhere($this->mainAlias.'.status = :status')
-                ->orWhere($this->mainAlias.'.status = :scheduled_status AND page.publishedAt > :publicationDate')
+                ->orWhere($this->mainAlias.'.status = :scheduled_status AND '.$this->mainAlias.'.publishedAt > :publicationDate')
                 ->setParameter('status', PageStatus::PUBLISHED)
                 ->setParameter('scheduled_status', PageStatus::SCHEDULED)
                 ->setParameter('publicationDate', new \DateTime());
@@ -116,7 +101,7 @@ class ViewRepository extends NestedTreeRepository
     }
 
     /**
-     * Get the the view that is a homepage and a published one.
+     * Get the the view that is a aage and a published one.
      *
      * @param string $locale
      *
@@ -154,9 +139,25 @@ class ViewRepository extends NestedTreeRepository
     }
 
     /**
-     * Get PageSeo.
+     * Join PageSeoTranslation to PageSeo for a locale.
      *
-     * @param string $method leftJoin|innerJoin
+     * @param string $locale
+     *
+     * @return ViewRepository
+     */
+    public function joinSeoTranslations($locale)
+    {
+        $this->getInstance()
+            ->leftJoin('seo.translations', 'translation', Expr\Join::WITH, 'translation.locale = :locale')
+            ->setParameter('locale', $locale);
+
+        return $this;
+    }
+
+    /**
+     * Join ViewTranslation for a locale.
+     *
+     * @param string $locale
      *
      * @return ViewRepository
      */

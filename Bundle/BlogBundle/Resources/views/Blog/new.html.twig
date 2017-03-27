@@ -4,14 +4,14 @@
 
 {% trans_default_domain "victoire" %}
 
-{% block modal_container_classes %}{{ parent() }} vic-view-modal{% endblock modal_container_classes %}
+{% block modal_container_classes %}{{ parent() }} v-modal--view{% endblock modal_container_classes %}
 
 {% block modal_header_title %}
     {{"modal.blog.new.title"|trans()}}
 {% endblock modal_header_title %}
 
 {% block modal_body_content %}
-    <form method="POST" action="{{ path('victoire_blog_new') }}">
+    <form method="POST" action="{{ path('victoire_blog_new_post') }}">
         {{form_widget(form)}}
     </form>
 {% endblock modal_body_content %}

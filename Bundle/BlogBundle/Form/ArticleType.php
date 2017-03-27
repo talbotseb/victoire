@@ -4,6 +4,7 @@ namespace Victoire\Bundle\BlogBundle\Form;
 
 use A2lix\TranslationFormBundle\Form\Type\TranslationsType;
 use Doctrine\ORM\EntityManager;
+use Doctrine\ORM\EntityRepository;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -47,6 +48,15 @@ class ArticleType extends AbstractType
             ->add('tags', TagsType::class, [
                 'required' => false,
                 'multiple' => true,
+            ])
+            ->add('author', null, [
+                'label'         => 'form.article.type.author.label',
+                'required'      => true,
+                'query_builder' => function (EntityRepository $er) {
+                    return $er->createQueryBuilder('user')
+                        ->where('user.roles LIKE :roles')
+                        ->setParameter('roles', '%ROLE_VICTOIRE%');
+                },
             ])
             ->remove('visibleOnFront');
 
@@ -122,12 +132,14 @@ class ArticleType extends AbstractType
                     'field_type' => MediaType::class,
                     'required'   => false,
                 ],
-
             ],
         ];
 
         if ($form->getData() instanceof Article && null === $form->getData()->getId()) {
-            $options['exclude_fields'] = ['slug'];
+            $options['fields']['slug'] = [
+                'required'       => false,
+                'vic_help_block' => 'form.article.slug.help_block',
+            ];
         }
 
         $form->add('translations', TranslationsType::class, $options);

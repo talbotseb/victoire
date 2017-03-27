@@ -101,7 +101,7 @@ Scenario: I add widget in a position from template
   And I am on the homepage
   Then I should see "Widget 1"
   When I switch to "layout" mode
-  Then I should see "Nouveau Contenu"
+  Then I should see "Nouveau contenu"
   When I select "Texte brut" from the "3" select of "main_content" slot
   Then I should see "Créer"
   When I fill in "Texte *" with "Widget 4"
@@ -136,9 +136,10 @@ Scenario: I delete widget from template
   Then I should see "Widget 1"
   When I switch to "edit" mode
   And I edit the "Text" widget
-  Then I should see "Supprimer"
-  Given I follow "Supprimer"
-  Then I should see "Cette action va définitivement supprimer ce contenu. Cette action est irréversible. Êtes-vous sûr ?"
+  Then I should see "SUPPRIMER"
+  Given I follow "SUPPRIMER"
+  Then I should see "Cette action va définitivement supprimer ce contenu. Cette action est irréversible."
+  And I should see "Êtes-vous sûr ?"
   Given I press "J'ai bien compris, je confirme la suppression"
   And I reload the page
   And "Widget 3" should precede "Widget 2"
@@ -213,7 +214,7 @@ Scenario: I add a widget after an overwrite widget from template
   Then "Widget 1" should precede "Widget 3 overwrite"
   Then "Widget 3 overwrite" should precede "Widget 2"
   When I switch to "layout" mode
-  Then I should see "Nouveau Contenu"
+  Then I should see "Nouveau contenu"
   When I select "Texte brut" from the "3" select of "main_content" slot
   Then I should see "Créer"
   When I fill in "Texte *" with "Widget 4"
@@ -242,9 +243,10 @@ Scenario: I delete an overwrite widget from template
   And I am on the homepage
   When I switch to "edit" mode
   And I press the "Widget 3 overwrite" content
-  Then I should see "Supprimer"
-  Given I follow "Supprimer"
-  Then I should see "Cette action va définitivement supprimer ce contenu. Cette action est irréversible. Êtes-vous sûr ?"
+  Then I should see "SUPPRIMER"
+  Given I follow "SUPPRIMER"
+  Then I should see "Cette action va définitivement supprimer ce contenu. Cette action est irréversible."
+  And I should see "Êtes-vous sûr ?"
   Given I press "J'ai bien compris, je confirme la suppression"
   And I reload the page
   Then I should see "Widget 1"
@@ -296,7 +298,7 @@ Scenario: I add a widget after an overwrite widget on template
     | Widget 3 overwrite | static |    4       |
   Then I am on "/fr/victoire-dcms/template/show/1"
   When I switch to "layout" mode
-  Then I should see "Nouveau Contenu"
+  Then I should see "Nouveau contenu"
   When I select "Texte brut" from the "3" select of "main_content" slot
   Then I should see "Créer"
   When I fill in "Texte *" with "Widget 4"
@@ -327,9 +329,10 @@ Scenario: I delete an overwrite widget on template
   Then I am on "/fr/victoire-dcms/template/show/1"
   When I switch to "edit" mode
   And I press the "Widget 3" content
-  Then I should see "Supprimer"
-  Given I follow "Supprimer"
-  Then I should see "Cette action va définitivement supprimer ce contenu. Cette action est irréversible. Êtes-vous sûr ?"
+  Then I should see "SUPPRIMER"
+  Given I follow "SUPPRIMER"
+  Then I should see "Cette action va définitivement supprimer ce contenu. Cette action est irréversible."
+  And I should see "Êtes-vous sûr ?"
   Given I press "J'ai bien compris, je confirme la suppression"
   And I reload the page
   Then I should see "Widget 1"
@@ -339,3 +342,45 @@ Scenario: I delete an overwrite widget on template
   Then I should see "Widget 1"
   Then I should see "Widget 2"
   Then I should see "Widget 3 overwrite"
+
+  @reset-schema
+  Scenario: I delete a widget from template which has children WidgetMap in inherited page
+    Given the following WidgetMaps:
+      | id | action | position | parent | slot         | view | replaced |
+      | 1  | create |          |        | main_content | base |          |
+      | 2  | create | after    | 1      | main_content | base |          |
+      | 3  | create | after    | 2      | main_content | home |          |
+      | 4  | create | after    | 3      | main_content | home |          |
+    Given the following WidgetTexts:
+      | content  | mode   | widgetMap |
+      | Widget 1 | static | 1         |
+      | Widget 2 | static | 2         |
+      | Widget 3 | static | 3         |
+      | Widget 4 | static | 4         |
+    When I am on the homepage
+    Then I should see "Widget 1"
+    And I should see "Widget 2"
+    And I should see "Widget 3"
+    And I should see "Widget 4"
+    And I am on "/fr/victoire-dcms/template/show/1"
+    Then I should see "Widget 1"
+    And I should see "Widget 2"
+    And I should not see "Widget 3"
+    And I should not see "Widget 4"
+    When I switch to "edit" mode
+    And I press the "Widget 2" content
+    Then I should see "SUPPRIMER"
+    When I follow "SUPPRIMER"
+    Then I should see "Cette action va définitivement supprimer ce contenu. Cette action est irréversible."
+    And I should see "Êtes-vous sûr ?"
+    When I press "J'ai bien compris, je confirme la suppression"
+    And I reload the page
+    Then I should see "Widget 1"
+    And I should not see "Widget 2"
+    And I should not see "Widget 3"
+    And I should not see "Widget 4"
+    When I am on the homepage
+    Then I should see "Widget 1"
+    And I should not see "Widget 2"
+    And I should see "Widget 3"
+    And I should see "Widget 4"
